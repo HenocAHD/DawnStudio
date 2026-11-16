@@ -2745,6 +2745,47 @@ impl HoneydewApp {
                 DawnAction::DownloadSounds => {
                     crate::update::download_sounds();
                 }
+                DawnAction::OpenDrumPads => {
+                    let ch = self.selected_channel;
+                    let is_drums = self.song.channels.get(ch).is_some_and(|c| c.kind == ChannelKind::Drums);
+                    if is_drums {
+                        navs.push(Nav::Show(View::DrumEditor(ch)));
+                    } else if let Some(drum_ch) = self.song.channels.iter().position(|c| c.kind == ChannelKind::Drums) {
+                        self.selected_channel = drum_ch;
+                        navs.push(Nav::Show(View::DrumEditor(drum_ch)));
+                    } else {
+                        actions.add = Some(AddChannelPick::Kind(ChannelKind::Drums));
+                    }
+                }
+                DawnAction::SetKeyboardMode(mode) => {
+                    self.settings.keyboard_kind = mode;
+                    self.main_screen.panel_hidden = false;
+                }
+                DawnAction::SetProjectScale(scale_id) => {
+                    let stored = crate::song::scales::scale_to_stored(scale_id);
+                    self.song.set_key_scale(stored);
+                    self.song_edited(SongEdit::Final, tick);
+                }
+                DawnAction::ToggleRecordArm => {
+                    self.main_screen.armed = !self.main_screen.armed;
+                }
+                DawnAction::AddAudioVocalTrack => {
+                    actions.add = Some(AddChannelPick::Kind(ChannelKind::AudioRecord));
+                }
+                DawnAction::ToggleCountIn => {
+                    self.settings.count_in = !self.settings.count_in;
+                }
+                DawnAction::ToggleMetronome => {
+                    self.settings.rec_metronome = !self.settings.rec_metronome;
+                }
+                DawnAction::OpenExportDialog => {
+                    let name = if self.song.title.is_empty() {
+                        "New Song".to_owned()
+                    } else {
+                        self.song.title.clone()
+                    };
+                    navs.push(Nav::Open(Overlay::SaveDialog { name }));
+                }
             }
         }
         if let Some(pick) = actions.add {

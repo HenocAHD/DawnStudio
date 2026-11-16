@@ -487,6 +487,22 @@ pub enum DawnAction {
     SetThemeJson(Option<&'static str>),
     /// Initiates background download of the factory sound library.
     DownloadSounds,
+    /// Opens the Drum Pads & Step Sequencer view (switching to or adding a drum kit if needed).
+    OpenDrumPads,
+    /// Sets keyboard kind: 0 = Classic Piano, 1 = Scale Lock, 2 = Chords Strips, 3 = Strum.
+    SetKeyboardMode(u8),
+    /// Sets project scale using SCALES index.
+    SetProjectScale(usize),
+    /// Toggles REC arming on the transport.
+    ToggleRecordArm,
+    /// Adds an Audio Record channel for vocal / microphone recording.
+    AddAudioVocalTrack,
+    /// Toggles count-in 1-bar pre-roll.
+    ToggleCountIn,
+    /// Toggles metronome during recording.
+    ToggleMetronome,
+    /// Opens the Save & Export dialog for rendering WAV/FLAC/OGG/Stems/FLP.
+    OpenExportDialog,
 }
 
 /// Persistent state for DawnStudio's Radial Pie Menu & `Ctrl+K` Command Palette.
@@ -660,6 +676,146 @@ fn palette_entries(selected_channel: usize) -> Vec<PaletteEntry> {
             action: DawnAction::SetThemeJson(None),
         },
         PaletteEntry {
+            category: "VIEW",
+            title: "View: Drum Pads & Step Sequencer (Beatmaking)",
+            shortcut: "Pads",
+            icon: IconId::StepSeq,
+            action: DawnAction::OpenDrumPads,
+        },
+        PaletteEntry {
+            category: "BEATS",
+            title: "Add Track: Drum Sequencer (4x4 Drum Kit)",
+            shortcut: "Drums",
+            icon: IconId::StepSeq,
+            action: DawnAction::AddChannel(AddChannelPick::Kind(ChannelKind::Drums)),
+        },
+        PaletteEntry {
+            category: "CHORDS",
+            title: "Keyboard Mode: Chords (Instant One-Touch Strips)",
+            shortcut: "Chords",
+            icon: IconId::Piano,
+            action: DawnAction::SetKeyboardMode(2),
+        },
+        PaletteEntry {
+            category: "CHORDS",
+            title: "Keyboard Mode: Scale Lock (Fold Keys to Scale)",
+            shortcut: "ScaleLock",
+            icon: IconId::Piano,
+            action: DawnAction::SetKeyboardMode(1),
+        },
+        PaletteEntry {
+            category: "CHORDS",
+            title: "Keyboard Mode: Strum (Acoustic & Electric Strumming)",
+            shortcut: "Strum",
+            icon: IconId::Piano,
+            action: DawnAction::SetKeyboardMode(3),
+        },
+        PaletteEntry {
+            category: "CHORDS",
+            title: "Keyboard Mode: Classic (Full Piano Keyboard)",
+            shortcut: "Classic",
+            icon: IconId::Piano,
+            action: DawnAction::SetKeyboardMode(0),
+        },
+        PaletteEntry {
+            category: "SCALES",
+            title: "Scale: Minor Pentatonic (Trap, Rap & Blues)",
+            shortcut: "MinPent",
+            icon: IconId::Piano,
+            action: DawnAction::SetProjectScale(14),
+        },
+        PaletteEntry {
+            category: "SCALES",
+            title: "Scale: Minor Natural (Melodic Trap, Pop & EDM)",
+            shortcut: "MinNat",
+            icon: IconId::Piano,
+            action: DawnAction::SetProjectScale(21),
+        },
+        PaletteEntry {
+            category: "SCALES",
+            title: "Scale: Major (Upbeat & Pop Progressions)",
+            shortcut: "Major",
+            icon: IconId::Piano,
+            action: DawnAction::SetProjectScale(0),
+        },
+        PaletteEntry {
+            category: "SCALES",
+            title: "Scale: Dorian (Neo-Soul, R&B & House)",
+            shortcut: "Dorian",
+            icon: IconId::Piano,
+            action: DawnAction::SetProjectScale(26),
+        },
+        PaletteEntry {
+            category: "SCALES",
+            title: "Scale: Blues Scale (Blues & Rock)",
+            shortcut: "Blues",
+            icon: IconId::Piano,
+            action: DawnAction::SetProjectScale(32),
+        },
+        PaletteEntry {
+            category: "CHORDS",
+            title: "Keyboard: Open Keyboard & Scale Settings Panel",
+            shortcut: "KbdSet",
+            icon: IconId::Piano,
+            action: DawnAction::Nav(Nav::Toggle(Overlay::KeyboardSettings)),
+        },
+        PaletteEntry {
+            category: "RECORD",
+            title: "Record: Arm / Disarm Microphone & Audio Recording",
+            shortcut: "REC",
+            icon: IconId::Record,
+            action: DawnAction::ToggleRecordArm,
+        },
+        PaletteEntry {
+            category: "RECORD",
+            title: "Track: Add Audio Record Channel (Vocal Mic)",
+            shortcut: "Vocal",
+            icon: IconId::Record,
+            action: DawnAction::AddAudioVocalTrack,
+        },
+        PaletteEntry {
+            category: "RECORD",
+            title: "Record: Toggle Count-In (1 Bar Pre-Roll)",
+            shortcut: "CountIn",
+            icon: IconId::Play,
+            action: DawnAction::ToggleCountIn,
+        },
+        PaletteEntry {
+            category: "RECORD",
+            title: "Record: Toggle Metronome Click",
+            shortcut: "Metro",
+            icon: IconId::Tempo,
+            action: DawnAction::ToggleMetronome,
+        },
+        PaletteEntry {
+            category: "EXPORT",
+            title: "Export: Render Song to Audio (WAV, FLAC, OGG)",
+            shortcut: "WAV",
+            icon: IconId::Download,
+            action: DawnAction::OpenExportDialog,
+        },
+        PaletteEntry {
+            category: "EXPORT",
+            title: "Export: Export Stems (Separate Audio Tracks)",
+            shortcut: "Stems",
+            icon: IconId::Download,
+            action: DawnAction::OpenExportDialog,
+        },
+        PaletteEntry {
+            category: "EXPORT",
+            title: "Export: Export to FL Studio Project (.flp)",
+            shortcut: "FLP",
+            icon: IconId::Download,
+            action: DawnAction::OpenExportDialog,
+        },
+        PaletteEntry {
+            category: "EXPORT",
+            title: "Export: Export Standard MIDI (.mid)",
+            shortcut: "MID",
+            icon: IconId::Download,
+            action: DawnAction::OpenExportDialog,
+        },
+        PaletteEntry {
             category: "MENU",
             title: "Project: Songs & Export Browser",
             shortcut: "Songs",
@@ -677,7 +833,7 @@ fn palette_entries(selected_channel: usize) -> Vec<PaletteEntry> {
 }
 
 impl DawnQuickState {
-    /// Renders the signature MorningDAW top ribbon (`ARRANGE | PIANO | RACK | MIXER`)
+    /// Renders the signature MorningDAW top ribbon (`ARRANGE | PIANO | PADS | RACK | MIXER`)
     /// and the tactile `◎` Radial Pie Button (with Hold-and-Flick support).
     pub fn show_touch_controls(
         &mut self,
@@ -700,10 +856,10 @@ impl DawnQuickState {
         let ribbon_y = screen.top() + m.u(0.25);
         let ribbon_h = m.u(1.15);
         let left = screen.left() + m.u(0.6);
-        let compact = screen.width() < m.u(22.0);
+        let compact = screen.width() < m.u(24.0);
 
-        let tab_w = if compact { m.u(1.4) } else { m.u(2.3) };
-        let total_tabs_w = tab_w * 4.0;
+        let tab_w = if compact { m.u(1.15) } else { m.u(1.85) };
+        let total_tabs_w = tab_w * 5.0;
         let ribbon_rect = Rect::from_min_size(pos2(left, ribbon_y), vec2(total_tabs_w, ribbon_h));
 
         // Paint ribbon background pill.
@@ -719,7 +875,7 @@ impl DawnQuickState {
 
         let mut action = None;
 
-        // The 4 core views in MorningDAW order: ARRANGE, PIANO, RACK, MIXER.
+        // The 5 core views in MorningDAW order: ARRANGE, PIANO, PADS, RACK, MIXER.
         let tabs = [
             (
                 "ARRANGE",
@@ -730,8 +886,14 @@ impl DawnQuickState {
             (
                 "PIANO",
                 IconId::Piano,
-                matches!(self.current_view, Some(View::PianoRoll(_) | View::DrumEditor(_))),
+                matches!(self.current_view, Some(View::PianoRoll(_))),
                 DawnAction::EditOrCreateClip,
+            ),
+            (
+                "PADS",
+                IconId::StepSeq,
+                matches!(self.current_view, Some(View::DrumEditor(_))),
+                DawnAction::OpenDrumPads,
             ),
             (
                 "RACK",
