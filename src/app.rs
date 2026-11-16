@@ -289,7 +289,7 @@ pub struct HoneydewApp {
     #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
     control: Option<control::Bridge>,
     /// `Install sound library…` running (`app/sounds.rs`).
-    #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+    #[cfg(not(target_arch = "wasm32"))]
     sounds: Option<crate::content::install::Job>,
 }
 
@@ -372,7 +372,7 @@ impl Default for HoneydewApp {
             importing: None,
             #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
             control: None,
-            #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+            #[cfg(not(target_arch = "wasm32"))]
             sounds: None,
         }
     }
