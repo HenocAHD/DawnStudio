@@ -1,0 +1,70 @@
+name: DawnStudio CI & Android APK
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux-desktop:
+    name: Linux Desktop & Unit Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: dawnstudio-linux-x86_64
+      - name: Install Linux audio & windowing libraries
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libasound2-dev libxkbcommon-dev libwayland-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libclang-dev
+      - name: Run DawnStudio Theme & Radial Pie Menu Tests
+        run: |
+          cargo test --lib pie_menu
+          cargo test --lib theme
+      - name: Build DawnStudio Linux Release Binary
+        run: cargo build --release --bin honeydew-native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawnstudio-linux-x86_64
+          path: target/release/honeydew-native
+
+  android-apk:
+    name: Android APK (ARM64 + ARMv7)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.91.0
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: dawnstudio-android-arm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android NDK & cargo-ndk
+        run: |
+          sudo apt-get update && sudo apt-get install -y libclang-dev
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.0.13004108'
+          cargo install cargo-ndk --version 4.1.2 --locked
+      - name: Build DawnStudio Android APK (Base)
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+          tools/android-dist.sh --base
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dawnstudio-android-apk
+          path: android/app/build/outputs/apk/debug/*.apk
