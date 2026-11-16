@@ -7,6 +7,9 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -30,11 +33,13 @@ jobs:
           cargo test --lib pie_menu
           cargo test --lib theme
       - name: Build DawnStudio Linux Release Binary
-        run: cargo build --release --bin honeydew-native
+        run: |
+          cargo build --release --bin honeydew-native
+          cp target/release/honeydew-native target/release/dawnstudio-linux-x86_64
       - uses: actions/upload-artifact@v4
         with:
           name: dawnstudio-linux-x86_64
-          path: target/release/honeydew-native
+          path: target/release/dawnstudio-linux-x86_64
 
   android-apk:
     name: Android APK (ARM64 + ARMv7)
@@ -64,7 +69,21 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
           tools/android-dist.sh --base
+          cp target/DawnStudio-android-*.apk target/DawnStudio-android-arm.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: dawnstudio-android-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: DawnStudio-Android-APK
+          path: target/DawnStudio-android-arm.apk
+          if-no-files-found: error
+      - name: Publish APK to GitHub Release v0.1.0
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view v0.1.0 >/dev/null 2>&1; then
+            gh release create v0.1.0 target/DawnStudio-android-arm.apk \
+              --title "DawnStudio v0.1.0 (Android APK & Desktop)" \
+              --notes "DawnStudio v0.1.0 Android APK (ARM64 + ARMv7) combining Lemon Studio's 23+ DSP instruments/FX with MorningDAW's tactile Smart Radial Pie Menus, Command Palette, and Morning Ember theme."
+          else
+            gh release upload v0.1.0 target/DawnStudio-android-arm.apk --clobber
+          fi

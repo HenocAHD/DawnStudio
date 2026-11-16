@@ -95,5 +95,7 @@ version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
 suffix=
 [ "$variant" = release ] || suffix=-debug
 out=$CARGO_TARGET_DIR/honeydew-android-$version-arm$base$suffix.apk
+dawn_out=$CARGO_TARGET_DIR/DawnStudio-android-$version-arm$base$suffix.apk
 cp "$apk" "$out"
-echo "wrote $out"
+cp "$apk" "$dawn_out"
+echo "wrote $dawn_out"

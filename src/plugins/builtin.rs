@@ -216,7 +216,6 @@ pub fn controller(plugin: &PluginRef) -> bool {
 }
 
 /// The built-in plugin named `name`.
-#[cfg(test)]
 pub(crate) fn named(name: &str) -> &'static Builtin {
     all().iter().find(|b| b.name == name).unwrap()
 }
