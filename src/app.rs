@@ -60,8 +60,8 @@ mod bundle_wait;
 pub(crate) mod live;
 // Audio files dropped on the app.
 mod file_drop;
-// The desktop's sound library: its install and the notice at start.
-#[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+// The sound library: its install and the notice at start.
+#[cfg(not(target_arch = "wasm32"))]
 mod sounds;
 // The iOS self-test (`--selftest`), which the iOS workflow runs in the Simulator.
 #[cfg(target_os = "ios")]
@@ -425,7 +425,7 @@ impl HoneydewApp {
         // Before the questions a start may ask, which a song load closes.
         app.restore_last_song(&cc.egui_ctx);
         app.whats_new_at_start(fresh);
-        #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+        #[cfg(not(target_arch = "wasm32"))]
         app.sounds_at_start();
         #[cfg(not(any(target_arch = "wasm32", target_os = "ios")))]
         app.updates_at_start();
@@ -2742,6 +2742,9 @@ impl HoneydewApp {
                     self.settings.custom_theme = json.unwrap_or("").to_owned();
                     self.theme = self.settings.theme();
                 }
+                DawnAction::DownloadSounds => {
+                    crate::update::download_sounds();
+                }
             }
         }
         if let Some(pick) = actions.add {
@@ -2870,7 +2873,7 @@ impl HoneydewApp {
         self.midi_import(ctx, tick);
         self.export_started(ctx);
         self.demo_restore(ctx);
-        #[cfg(all(not(target_arch = "wasm32"), not(mobile)))]
+        #[cfg(not(target_arch = "wasm32"))]
         self.sounds(ctx, &metrics);
         #[cfg(not(any(target_arch = "wasm32", target_os = "ios")))]
         self.updates();

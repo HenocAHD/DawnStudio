@@ -63,6 +63,7 @@ impl HoneydewApp {
             }
         }
         if self.nav.answer().is_some_and(|(tag, _)| tag == SOUNDS_TAG) {
+            #[cfg(not(mobile))]
             let source = match self.nav.take_choice(SOUNDS_TAG) {
                 Some(Answer::Extra) => (rfd::FileDialog::new())
                     .add_filter("Sound library", &["zip"])
@@ -70,6 +71,8 @@ impl HoneydewApp {
                 Some(Answer::Yes) => rfd::FileDialog::new().pick_folder(),
                 _ => None,
             };
+            #[cfg(mobile)]
+            let source: Option<std::path::PathBuf> = None;
             if let (Some(source), Some(target)) = (source, install::dir()) {
                 self.sounds = Some(Job::start(source, target));
             }

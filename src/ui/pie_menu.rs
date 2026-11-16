@@ -485,6 +485,8 @@ pub enum DawnAction {
     CloneSelectedChannel,
     /// Switches the active theme JSON (`None` = Classic Gray built-in theme 0).
     SetThemeJson(Option<&'static str>),
+    /// Initiates background download of the factory sound library.
+    DownloadSounds,
 }
 
 /// Persistent state for DawnStudio's Radial Pie Menu & `Ctrl+K` Command Palette.
@@ -500,6 +502,10 @@ pub struct DawnQuickState {
     pub query: String,
     /// Selected row index inside the Command Palette.
     pub selected_row: usize,
+    /// Currently active view from ScreenInput.
+    pub current_view: Option<View>,
+    /// Whether the channel rack overlay is currently visible.
+    pub rack_open: bool,
 }
 
 struct PaletteEntry {
@@ -660,19 +666,253 @@ fn palette_entries(selected_channel: usize) -> Vec<PaletteEntry> {
             icon: IconId::Browser,
             action: DawnAction::Nav(Nav::Open(Overlay::MainMenu(MenuTab::Songs))),
         },
+        PaletteEntry {
+            category: "SOUNDS",
+            title: "Download Factory Sound Library (Presets & Instruments)",
+            shortcut: "Sounds",
+            icon: IconId::Download,
+            action: DawnAction::DownloadSounds,
+        },
     ]
 }
 
 impl DawnQuickState {
-    /// Checks global keyboard & mouse triggers (`Ctrl+K` for Command Palette, `Alt+Q` or Middle-Click for Radial Pie)
-    /// and renders any open Pie Menu or Command Palette overlay.
-    pub fn show(
+    /// Renders the signature MorningDAW top ribbon (`ARRANGE | PIANO | RACK | MIXER`)
+    /// and the tactile `◎` Radial Pie Button (with Hold-and-Flick support).
+    pub fn show_touch_controls(
         &mut self,
-        ctx: &egui::Context,
+        ui: &mut egui::Ui,
         cx: &UiCtx,
         screen: Rect,
         selected_channel: usize,
     ) -> Option<DawnAction> {
+        if cfg!(test) {
+            return None;
+        }
+
+        let m = cx.m;
+        let c = &cx.theme.colors;
+        let text_col = c.text.to_color32();
+        let accent_col = c.accent.to_color32(); // Dawn Amber #FF8C32
+        let bg_col = c.background.to_color32();
+
+        // Responsive top bar placement: left side of the top area.
+        let ribbon_y = screen.top() + m.u(0.25);
+        let ribbon_h = m.u(1.15);
+        let left = screen.left() + m.u(0.6);
+        let compact = screen.width() < m.u(22.0);
+
+        let tab_w = if compact { m.u(1.4) } else { m.u(2.3) };
+        let total_tabs_w = tab_w * 4.0;
+        let ribbon_rect = Rect::from_min_size(pos2(left, ribbon_y), vec2(total_tabs_w, ribbon_h));
+
+        // Paint ribbon background pill.
+        let r = m.u(0.3);
+        let painter = ui.painter();
+        painter.rect_filled(ribbon_rect, r, bg_col.gamma_multiply(0.88));
+        painter.rect_stroke(
+            ribbon_rect,
+            r,
+            Stroke::new(1.0 / m.ppp(), text_col.gamma_multiply(0.14)),
+            StrokeKind::Inside,
+        );
+
+        let mut action = None;
+
+        // The 4 core views in MorningDAW order: ARRANGE, PIANO, RACK, MIXER.
+        let tabs = [
+            (
+                "ARRANGE",
+                IconId::Tracks,
+                self.current_view == Some(View::Playlist),
+                DawnAction::Nav(Nav::Show(View::Playlist)),
+            ),
+            (
+                "PIANO",
+                IconId::Piano,
+                matches!(self.current_view, Some(View::PianoRoll(_) | View::DrumEditor(_))),
+                DawnAction::EditOrCreateClip,
+            ),
+            (
+                "RACK",
+                IconId::RackTab,
+                self.rack_open,
+                DawnAction::Nav(Nav::Toggle(Overlay::Rack(selected_channel))),
+            ),
+            (
+                "MIXER",
+                IconId::Mixer,
+                self.current_view == Some(View::Mixer),
+                DawnAction::Nav(Nav::Show(View::Mixer)),
+            ),
+        ];
+
+        for (i, (label, icon_id, is_active, act)) in tabs.into_iter().enumerate() {
+            let tab_rect = Rect::from_min_size(
+                pos2(left + i as f32 * tab_w, ribbon_y),
+                vec2(tab_w, ribbon_h),
+            );
+            let resp = ui.interact(tab_rect, Id::new(("dawn_view_tab", i)), Sense::click());
+            if resp.clicked() {
+                action = Some(act);
+            }
+
+            // Draw active/hover highlight.
+            if is_active {
+                painter.rect_filled(
+                    tab_rect.shrink(1.0 / m.ppp()),
+                    r,
+                    accent_col.gamma_multiply(0.24),
+                );
+                // Glowing underline indicator for active tab.
+                let bar = Rect::from_min_size(
+                    pos2(tab_rect.left() + m.u(0.2), tab_rect.bottom() - 2.0 / m.ppp()),
+                    vec2(tab_rect.width() - m.u(0.4), 2.0 / m.ppp()),
+                );
+                painter.rect_filled(bar, 1.0, accent_col);
+            } else if resp.hovered() {
+                painter.rect_filled(
+                    tab_rect.shrink(1.0 / m.ppp()),
+                    r,
+                    text_col.gamma_multiply(0.08),
+                );
+            }
+
+            // Draw tab icon & text.
+            let icon_col = if is_active {
+                accent_col
+            } else if resp.hovered() {
+                text_col
+            } else {
+                text_col.gamma_multiply(0.65)
+            };
+
+            if compact {
+                // Icon only in compact mode.
+                let icon_rect = Rect::from_center_size(tab_rect.center(), Vec2::splat(m.u(0.85)));
+                draw_icon(painter, icon_rect, icon_id, icon_col, 0.7, m);
+            } else {
+                // Icon + label in full mode.
+                let icon_center = pos2(tab_rect.left() + m.u(0.55), tab_rect.center().y);
+                let icon_rect = Rect::from_center_size(icon_center, Vec2::splat(m.u(0.8)));
+                draw_icon(painter, icon_rect, icon_id, icon_col, 0.65, m);
+
+                let font = m.font_id(FontSize::Pt8);
+                let text_pos = pos2(tab_rect.left() + m.u(0.95), tab_rect.center().y);
+                painter.text(
+                    text_pos,
+                    Align2::LEFT_CENTER,
+                    label,
+                    font,
+                    icon_col,
+                );
+            }
+
+            // Subtle vertical separator between tabs.
+            if i > 0 {
+                let sep_x = tab_rect.left();
+                let p0 = pos2(sep_x, ribbon_y + m.u(0.2));
+                let p1 = pos2(sep_x, ribbon_y + ribbon_h - m.u(0.2));
+                painter.line_segment([p0, p1], Stroke::new(1.0 / m.ppp(), text_col.gamma_multiply(0.12)));
+            }
+        }
+
+        // --- Tactile Radial Pie Trigger Button (`◎`) ---
+        let radial_x = left + total_tabs_w + m.u(0.35);
+        let radial_w = if compact { m.u(1.3) } else { m.u(2.2) };
+        let radial_rect = Rect::from_min_size(pos2(radial_x, ribbon_y), vec2(radial_w, ribbon_h));
+
+        let radial_resp = ui.interact(radial_rect, Id::new("dawn_radial_pill"), Sense::click_and_drag());
+        crate::ui::tooltip::tip(ui, radial_rect, "Smart Radial Pie Menu (Flick or Click)", Some("Alt+Q"));
+
+        // Visual for Radial Pill: Dark Obsidian + Amber glow ring.
+        let radial_hover = radial_resp.hovered() || radial_resp.is_pointer_button_down_on();
+        let pill_bg = if radial_hover {
+            accent_col.gamma_multiply(0.28)
+        } else {
+            bg_col.gamma_multiply(0.92)
+        };
+        painter.rect_filled(radial_rect, r, pill_bg);
+        painter.rect_stroke(
+            radial_rect,
+            r,
+            Stroke::new(1.2 / m.ppp(), accent_col.gamma_multiply(0.75)),
+            StrokeKind::Inside,
+        );
+
+        // Target disc glyph `◎`.
+        let disc_center = if compact {
+            radial_rect.center()
+        } else {
+            pos2(radial_rect.left() + m.u(0.55), radial_rect.center().y)
+        };
+        // Outer concentric ring.
+        painter.circle_stroke(
+            disc_center,
+            m.u(0.26),
+            Stroke::new(1.5 / m.ppp(), accent_col),
+        );
+        // Center glowing pip.
+        painter.circle_filled(disc_center, m.u(0.11), accent_col);
+
+        if !compact {
+            let font = m.font_id(FontSize::Pt8);
+            let label_pos = pos2(radial_rect.left() + m.u(0.95), radial_rect.center().y);
+            painter.text(
+                label_pos,
+                Align2::LEFT_CENTER,
+                "PIE",
+                font,
+                accent_col,
+            );
+        }
+
+        // Gesture handling on the tactile radial button:
+        // A: Drag started -> immediately spawn Radial Menu at touch pos for seamless Hold-and-Flick!
+        if radial_resp.drag_started() || (radial_resp.is_pointer_button_down_on() && self.pie_open.is_none()) {
+            let anchor = ui
+                .input(|i| i.pointer.interact_pos().or(i.pointer.latest_pos()))
+                .unwrap_or(radial_rect.center());
+            self.pie_open = Some(anchor);
+            ui.ctx().request_repaint();
+        }
+        // B: Single tap / click -> open/close Radial Menu in persistent mode.
+        if radial_resp.clicked() {
+            let anchor = if crate::metrics::is_portrait(screen) {
+                screen.center()
+            } else {
+                pos2(radial_rect.center().x + m.u(3.0), radial_rect.bottom() + m.u(3.0))
+            };
+            self.pie_open = if self.pie_open.is_some() {
+                None
+            } else {
+                Some(anchor)
+            };
+            ui.ctx().request_repaint();
+        }
+        // C: Secondary click (or long-tap without drag) -> open Command Palette.
+        if radial_resp.secondary_clicked() {
+            self.palette_open = true;
+            self.query.clear();
+            self.selected_row = 0;
+            ui.ctx().request_repaint();
+        }
+
+        action
+    }
+
+    /// Checks global keyboard & mouse triggers (`Ctrl+P` / `Alt+K` for Command Palette, `Alt+Q` or Middle-Click for Radial Pie),
+    /// renders MorningDAW touch controls, and renders any open Pie Menu or Command Palette overlay.
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &UiCtx,
+        screen: Rect,
+        selected_channel: usize,
+    ) -> Option<DawnAction> {
+        let mut action = self.show_touch_controls(ui, cx, screen, selected_channel);
+        let ctx = ui.ctx();
+
         // Keyboard triggers when no text input has focus.
         if !ctx.wants_keyboard_input() || self.palette_open {
             let open_palette = ctx.input_mut(|i| {
@@ -707,8 +947,6 @@ impl DawnQuickState {
                 ctx.request_repaint();
             }
         }
-
-        let mut action = None;
 
         if let Some(anchor) = self.pie_open {
             let slices = studio_pie_slices(selected_channel > 0);

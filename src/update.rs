@@ -33,10 +33,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::install::{self, Progress, SHIPPED_RELEASE};
 
-/// The project's GitHub repository.
-pub const REPO: &str = "daijro/honeydew";
+/// The project's GitHub repository for app releases.
+pub const REPO: &str = "HenocAHD/DawnStudio";
+/// The upstream repository hosting the factory sound library multi-part releases.
+pub const SOUNDS_REPO: &str = "daijro/honeydew";
 /// Its latest release, in GitHub's API.
-const LATEST: &str = "https://api.github.com/repos/daijro/honeydew/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/HenocAHD/DawnStudio/releases/latest";
 /// Its sound library releases' tags (`sounds-<version>`), each made when its release is published.
 const SOUNDS_TAGS: &str =
     "https://api.github.com/repos/daijro/honeydew/git/matching-refs/tags/sounds-";
@@ -490,7 +492,7 @@ fn installed(to: &Path) -> io::Result<String> {
 /// The sound library release `version`, published as its own release (`sounds-<version>`, from
 /// `.github/workflows/release.yml`): `index.json`, `CREDITS.txt` and the parts.
 pub fn sounds_url(version: &str) -> String {
-    format!("https://github.com/{REPO}/releases/download/sounds-{version}")
+    format!("https://github.com/{SOUNDS_REPO}/releases/download/sounds-{version}")
 }
 
 /// The sound library to download: the newest this build reads, of those a check found ([`newest_sounds`]), else the

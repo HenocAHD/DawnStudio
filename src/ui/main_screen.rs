@@ -1180,6 +1180,7 @@ impl MainScreen {
         regions: &Regions,
         actions: &mut ScreenActions,
     ) {
+        self.dawn.current_view = Some(input.view);
         if !self.panel_hidden {
             // A focus container, for `showTransport`.
             let panel = regions.transport.union(regions.keyboard);
@@ -1276,7 +1277,8 @@ impl MainScreen {
                 actions.nav = Some(Nav::Toggle(Overlay::MainMenu(MenuTab::Songs)));
             }
         }
-        if let Some(act) = self.dawn.show(ui.ctx(), cx, regions.screen, selected) {
+        self.dawn.rack_open = rack_open;
+        if let Some(act) = self.dawn.show(ui, cx, regions.screen, selected) {
             actions.dawn_action = Some(act);
         }
         place
